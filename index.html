@@ -74,6 +74,20 @@ label.f .req{color:var(--danger)}
 .inp{width:100%;border:1px solid var(--border);background:var(--surface-2);border-radius:10px;padding:10px 12px;outline:none;transition:.15s}
 .inp:focus{border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 3px var(--primary-soft)}
 .inp.err{border-color:var(--danger)}
+/* Phone with country picker */
+.phone{display:flex;gap:0;position:relative;direction:ltr}
+.phone .inp{border-start-start-radius:0;border-end-start-radius:0;text-align:left}
+.cc{display:flex;align-items:center;gap:6px;padding:0 10px;border:1px solid var(--border);border-inline-end:0;background:var(--surface);border-radius:10px 0 0 10px;cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cc:focus-visible{outline:2px solid var(--primary)}
+.flag{font-family:"Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif;font-size:20px;line-height:1}
+.cc-menu{position:absolute;top:calc(100% + 6px);left:0;width:min(330px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);z-index:30;overflow:hidden;direction:rtl}
+.cc-menu .inp{border-radius:0;border:0;border-bottom:1px solid var(--border);text-align:right}
+.cc-list{max-height:260px;overflow:auto}
+.cc-opt{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;background:none;cursor:pointer;text-align:start}
+.cc-opt:hover,.cc-opt.sel{background:var(--primary-soft)}
+.cc-opt .en{color:var(--muted);font-size:12.5px}
+.cc-opt .dial{margin-inline-start:auto;direction:ltr;unicode-bidi:isolate;color:var(--muted);font-variant-numeric:tabular-nums}
+.cc-sep{padding:4px 12px;font-size:11.5px;color:var(--muted);background:var(--surface-2)}
 textarea.inp{min-height:84px;resize:vertical}
 .hint{color:var(--muted);font-size:12.5px;font-weight:400}
 
@@ -322,10 +336,33 @@ const DOCS = {
   permit:{name:'رخصة البناء', required:true},
   extra:{name:'مستندات إضافية', required:false, multi:true},
 };
+
+/* الدول: [الرمز, الاسم بالعربي, English, رمز الاتصال, عدد الأرقام] — عُمان أولاً */
+const COUNTRIES = [
+ ['OM','عُمان','Oman','968','8'],
+ ['AE','الإمارات','UAE','971'],['SA','السعودية','Saudi Arabia','966'],['KW','الكويت','Kuwait','965'],
+ ['QA','قطر','Qatar','974'],['BH','البحرين','Bahrain','973'],['YE','اليمن','Yemen','967'],
+ ['EG','مصر','Egypt','20'],['JO','الأردن','Jordan','962'],['SY','سوريا','Syria','963'],['LB','لبنان','Lebanon','961'],
+ ['IQ','العراق','Iraq','964'],['PS','فلسطين','Palestine','970'],['SD','السودان','Sudan','249'],['MA','المغرب','Morocco','212'],
+ ['DZ','الجزائر','Algeria','213'],['TN','تونس','Tunisia','216'],['LY','ليبيا','Libya','218'],['SO','الصومال','Somalia','252'],
+ ['MR','موريتانيا','Mauritania','222'],['IN','الهند','India','91'],['PK','باكستان','Pakistan','92'],
+ ['BD','بنغلاديش','Bangladesh','880'],['LK','سريلانكا','Sri Lanka','94'],['NP','نيبال','Nepal','977'],
+ ['PH','الفلبين','Philippines','63'],['ID','إندونيسيا','Indonesia','62'],['MY','ماليزيا','Malaysia','60'],
+ ['TH','تايلاند','Thailand','66'],['CN','الصين','China','86'],['IR','إيران','Iran','98'],['AF','أفغانستان','Afghanistan','93'],
+ ['TR','تركيا','Turkey','90'],['ET','إثيوبيا','Ethiopia','251'],['KE','كينيا','Kenya','254'],['TZ','تنزانيا','Tanzania','255'],
+ ['UG','أوغندا','Uganda','256'],['NG','نيجيريا','Nigeria','234'],['ZA','جنوب أفريقيا','South Africa','27'],
+ ['GB','المملكة المتحدة','United Kingdom','44'],['US','الولايات المتحدة','United States','1'],['CA','كندا','Canada','1'],
+ ['AU','أستراليا','Australia','61'],['DE','ألمانيا','Germany','49'],['FR','فرنسا','France','33'],['IT','إيطاليا','Italy','39'],
+ ['ES','إسبانيا','Spain','34'],['NL','هولندا','Netherlands','31'],['RU','روسيا','Russia','7'],['UA','أوكرانيا','Ukraine','380'],
+];
+const flag = cc=> String.fromCodePoint(...[...cc].map(c=>127397+c.charCodeAt(0)));
+// تحويل الأرقام العربية/الفارسية إلى أرقام إنجليزية
+const toEn = s=> String(s??'').replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g,d=>d.charCodeAt(0)-0x6F0);
+let PHONE_CC='OM';
 const BASE_FIELDS = [
   {k:'name', label:'الاسم الكامل', req:true},
-  {k:'nid', label:'رقم الهوية / الإقامة', req:true, ltr:true, inputmode:'numeric'},
-  {k:'phone', label:'رقم الجوال', req:true, ltr:true, inputmode:'tel', ph:'05xxxxxxxx'},
+  {k:'nid', label:'الرقم المدني / رقم الجواز', req:true, ltr:true},
+  {k:'phone', label:'رقم الجوال', req:true, ltr:true, inputmode:'tel', phone:true},
   {k:'email', label:'البريد الإلكتروني', ltr:true, type:'email'},
 ];
 const EXTRA_FIELDS = {
@@ -337,6 +374,9 @@ const EXTRA_FIELDS = {
 const TAIL_FIELDS = [
   {k:'address', label:'عنوان العقار (المدينة، الحي، الشارع)', req:true, full:true},
   {k:'notes', label:'ملاحظات', full:true, area:true},
+];
+const HIDDEN_FIELDS = [
+  {k:'country', label:'دولة رقم الجوال'},
 ];
 const STATUS = {
   new:{name:'جديد', cls:'st-new'}, review:{name:'قيد المراجعة', cls:'st-review'},
@@ -427,11 +467,42 @@ function renderFields(){
   const prev = {}; document.querySelectorAll('#fields [name]').forEach(i=>prev[i.name]=i.value);
   $('#fields').innerHTML = fieldList().map(f=>{
     const attrs = `name="${f.k}" class="inp" ${f.req?'required':''} ${f.ltr?'dir="ltr" style="text-align:right"':''} ${f.inputmode?`inputmode="${f.inputmode}"`:''} ${f.ph?`placeholder="${f.ph}"`:''}`;
+    if(f.phone) return `<div class="f"><label for="phoneInp"><span>${f.label} <span class="req">*</span></span></label>
+      <div class="phone"><button type="button" class="cc" id="ccBtn" aria-haspopup="listbox"></button>
+      <input id="phoneInp" type="tel" name="phone" class="inp" required inputmode="tel" autocomplete="tel-national"></div></div>`;
     const ctl = f.area ? `<textarea ${attrs}></textarea>` : `<input type="${f.type||'text'}" ${attrs}>`;
     return `<label class="f ${f.full?'full':''}"><span>${f.label} ${f.req?'<span class="req">*</span>':''}</span>${ctl}</label>`;
   }).join('');
-  document.querySelectorAll('#fields [name]').forEach(i=>{ if(prev[i.name]) i.value=prev[i.name]; i.oninput=()=>i.classList.remove('err'); });
+  document.querySelectorAll('#fields [name]').forEach(i=>{ if(prev[i.name]) i.value=prev[i.name];
+    const ltr = i.getAttribute('dir')==='ltr' || i.name==='phone';
+    i.oninput=()=>{ i.classList.remove('err');
+      if(ltr){ const v=toEn(i.value); if(v!==i.value){ const p=i.selectionStart; i.value=v; try{i.setSelectionRange(p,p);}catch{} } } };
+  });
+  setCountry(PHONE_CC);
+  $('#ccBtn').onclick=e=>{ e.stopPropagation(); toggleCC(); };
 }
+function setCountry(cc){
+  PHONE_CC=cc; const c=COUNTRIES.find(x=>x[0]===cc);
+  $('#ccBtn').innerHTML=`<span class="flag">${flag(c[0])}</span><span>+${c[3]}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>`;
+  $('#ccBtn').title=c[1]+' — '+c[2];
+  $('#phoneInp').placeholder = cc==='OM' ? '9XXX XXXX' : 'Phone number / رقم الجوال';
+}
+function toggleCC(){
+  const open=document.querySelector('.cc-menu'); if(open){ open.remove(); return; }
+  const m=document.createElement('div'); m.className='cc-menu';
+  m.innerHTML=`<input class="inp" id="ccSearch" placeholder="ابحث عن الدولة / Search country" autocomplete="off"><div class="cc-list" role="listbox"></div>`;
+  $('.phone').appendChild(m);
+  const list=m.querySelector('.cc-list'), q=m.querySelector('#ccSearch');
+  const draw=()=>{ const t=toEn(q.value.trim()).toLowerCase().replace(/^\+/,'');
+    const hits=COUNTRIES.filter(c=>!t||c[1].includes(t)||c[2].toLowerCase().includes(t)||c[3].startsWith(t));
+    list.innerHTML=hits.map((c,i)=>(i===1&&!t?'<div class="cc-sep">دول أخرى</div>':'')+`<button type="button" class="cc-opt ${c[0]===PHONE_CC?'sel':''}" data-cc="${c[0]}">
+      <span class="flag">${flag(c[0])}</span><span>${c[1]} <span class="en">${c[2]}</span></span><span class="dial">+${c[3]}</span></button>`).join('')
+      || '<div class="cc-sep">لا توجد نتائج</div>';
+    list.querySelectorAll('.cc-opt').forEach(b=>b.onclick=()=>{ setCountry(b.dataset.cc); m.remove(); $('#phoneInp').focus(); }); };
+  q.oninput=draw; m.onclick=e=>e.stopPropagation(); draw(); q.focus();
+}
+document.addEventListener('click',()=>document.querySelector('.cc-menu')?.remove());
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.querySelector('.cc-menu')?.remove(); });
 
 function renderSlots(){
   const s=svc(current);
@@ -479,7 +550,7 @@ function addFiles(k, list){
 }
 
 function resetForm(){
-  files={}; $('#reqForm').reset();
+  files={}; $('#reqForm').reset(); PHONE_CC='OM'; setCountry('OM');
   document.querySelectorAll('#fields [name]').forEach(i=>{ i.value=''; i.classList.remove('err'); });
   renderSlots();
 }
@@ -496,11 +567,18 @@ $('#reqForm').onsubmit = async e=>{
   let bad=null;
   const data={};
   fieldList().forEach(f=>{
-    const el=document.querySelector(`#fields [name="${f.k}"]`); const v=el.value.trim(); data[f.k]=v;
+    const el=document.querySelector(`#fields [name="${f.k}"]`); const v=(f.ltr?toEn(el.value):el.value).trim(); data[f.k]=v;
     if(f.req && !v){ el.classList.add('err'); bad ||= el; }
   });
-  if(data.phone && !/^[+\d][\d\s-]{7,}$/.test(data.phone)){ const el=document.querySelector('#fields [name=phone]'); el.classList.add('err'); bad ||= el; }
-  if(bad){ bad.focus(); toast('يرجى تعبئة الحقول المطلوبة'); return; }
+  if(data.phone){
+    const c=COUNTRIES.find(x=>x[0]===PHONE_CC); let n=data.phone.replace(/[\s\-()]/g,'');
+    if(n.startsWith('+'+c[3])) n=n.slice(c[3].length+1); else if(n.startsWith('00'+c[3])) n=n.slice(c[3].length+2);
+    const ok = c[4] ? new RegExp(`^\\d{${c[4]}}$`).test(n) && (c[0]!=='OM'||/^[79]/.test(n)) : /^0?\d{6,13}$/.test(n);
+    if(!ok){ const el=$('#phoneInp'); el.classList.add('err'); bad ||= el;
+      toast(c[0]==='OM'?'رقم الجوال العُماني يتكون من 8 أرقام ويبدأ بـ 9 أو 7':'رقم الجوال غير صحيح'); }
+    else { data.phone=`+${c[3]} ${n}`; data.country=c[1]; }
+  }
+  if(bad){ bad.focus(); if(bad.id!=='phoneInp'||!data.phone) toast('يرجى تعبئة الحقول المطلوبة'); return; }
   const missing = svc(current).docs.filter(k=>DOCS[k].required && !(files[k]||[]).length);
   if(missing.length){
     missing.forEach(k=>document.querySelector(`.slot[data-k="${k}"]`).classList.add('err'));
@@ -543,7 +621,7 @@ async function renderDash(){
   drawRows();
 }
 function drawRows(){
-  const q=$('#q').value.trim().toLowerCase(), st=$('#fStatus').value, ty=$('#fType').value;
+  const q=toEn($('#q').value).trim().toLowerCase(), st=$('#fStatus').value, ty=$('#fType').value;
   const list=ALL.filter(r=>(!st||r.status===st)&&(!ty||r.service===ty)&&
     (!q||[r.id,r.data.name,r.data.nid,r.data.meter,r.data.phone,r.data.newName].join(' ').toLowerCase().includes(q)));
   $('#rows').innerHTML=list.map(r=>`<tr data-id="${r.id}">
@@ -557,7 +635,7 @@ function drawRows(){
 
 /* ================= تفاصيل الطلب ================= */
 let OPEN=null, urls=[];
-function labelFor(k){ return [...BASE_FIELDS,...Object.values(EXTRA_FIELDS),...TAIL_FIELDS].find(f=>f.k===k)?.label||k; }
+function labelFor(k){ return [...BASE_FIELDS,...Object.values(EXTRA_FIELDS),...TAIL_FIELDS,...HIDDEN_FIELDS].find(f=>f.k===k)?.label||k; }
 
 function openDrawer(id){
   OPEN=ALL.find(r=>r.id===id); if(!OPEN) return;
@@ -714,6 +792,13 @@ $('#mergeBtn').onclick=async()=>{
   }catch(err){ console.error(err); toast('حدث خطأ أثناء الدمج'); }
   finally{ btn.disabled=false; btn.innerHTML=old; }
 };
+
+
+/* خط أعلام الدول (يُحمّل الأعلام المستخدمة فقط) */
+(function(){ try{
+  const l=document.createElement('link'); l.rel='stylesheet';
+  l.href='https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap&text='+encodeURIComponent(COUNTRIES.map(c=>flag(c[0])).join(''));
+  document.head.appendChild(l); }catch{} })();
 
 /* بدء التشغيل */
 renderServices(); renderFields(); renderSlots(); updateBadge();
